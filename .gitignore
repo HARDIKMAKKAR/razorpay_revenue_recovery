@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.*
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Angular build
+dist/
+.angular/
+.cache/
+
+# Python / Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated datasets
+ml_service/data/raw/*.csv
+ml_service/data/processed/*.csv
+
+# Trained models
+ml_service/models/*.pkl
+ml_service/models/*.joblib
+
+# Logs
+*.log
