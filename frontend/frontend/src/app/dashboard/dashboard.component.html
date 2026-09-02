@@ -1,0 +1,241 @@
+<div class="dashboard">
+
+  <!-- HEADER -->
+
+  <header class="header">
+
+    <div>
+      <h1>Revenue Recovery</h1>
+      <p>AI-powered payment recovery</p>
+    </div>
+
+    <div class="status">
+      <span class="status-dot"></span>
+      System Active
+    </div>
+
+  </header>
+
+
+  <!-- METRICS -->
+
+  <section class="metrics">
+
+    <div class="metric-card">
+      <span class="metric-label">Failed Payments</span>
+      <strong>1,248</strong>
+      <small>Requires attention</small>
+    </div>
+
+    <div class="metric-card">
+      <span class="metric-label">Recovery Opportunity</span>
+      <strong>₹18.4L</strong>
+      <small>Potential revenue</small>
+    </div>
+
+    <div class="metric-card">
+      <span class="metric-label">Recovered Revenue</span>
+      <strong>₹12.7L</strong>
+      <small>+14.2% this month</small>
+    </div>
+
+    <div class="metric-card">
+      <span class="metric-label">Recovery Rate</span>
+      <strong>68.4%</strong>
+      <small>AI optimized</small>
+    </div>
+
+  </section>
+
+
+  <!-- MAIN -->
+
+  <div class="content">
+
+    <!-- PAYMENTS -->
+
+    <section class="payments">
+
+      <div class="section-header">
+
+        <div>
+          <h2>Failed Payments</h2>
+          <p>AI recommendations for recovery</p>
+        </div>
+
+      </div>
+
+
+      <div class="table">
+
+        <div class="table-header">
+          <span>Customer</span>
+          <span>Amount</span>
+          <span>Failure</span>
+          <span>Attempt</span>
+        </div>
+
+
+        <div
+          class="payment-row"
+          *ngFor="let payment of payments"
+          (click)="selectPayment(payment)"
+          [class.selected]="selectedPayment?.id === payment.id"
+        >
+
+          <div>
+            <strong>{{ payment.customer }}</strong>
+            <small>{{ payment.id }}</small>
+          </div>
+
+          <strong>
+            ₹{{ payment.amount | number }}
+          </strong>
+
+          <span class="failure">
+            {{ formatFailure(payment.failure_reason) }}
+          </span>
+
+          <span>
+            #{{ payment.attempt_number }}
+          </span>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- AI PANEL -->
+
+    <aside class="ai-panel">
+
+      <div *ngIf="!selectedPayment" class="empty">
+
+        <div class="empty-icon">✦</div>
+
+        <h3>Select a failed payment</h3>
+
+        <p>
+          Choose a payment to generate
+          an AI recovery recommendation.
+        </p>
+
+      </div>
+
+
+      <div *ngIf="selectedPayment">
+
+        <div class="panel-header">
+
+          <div>
+            <span class="eyebrow">AI RECOMMENDATION</span>
+            <h2>{{ selectedPayment.customer }}</h2>
+          </div>
+
+          <span class="amount">
+            ₹{{ selectedPayment.amount | number }}
+          </span>
+
+        </div>
+
+
+        <div *ngIf="loading" class="loading">
+          Analyzing payment...
+        </div>
+
+
+        <div *ngIf="recommendation && !loading">
+
+          <div class="recommendation">
+
+            <span class="eyebrow">
+              RECOMMENDED ACTION
+            </span>
+
+            <h1>
+              {{ formatAction(
+                recommendation.recommended_action
+              ) }}
+            </h1>
+
+          </div>
+
+
+          <div class="scores">
+
+            <div>
+              <span>Recovery Probability</span>
+
+              <strong>
+                {{
+                  recommendation.recovery_probability
+                    | percent:'1.0-2'
+                }}
+              </strong>
+            </div>
+
+            <div>
+              <span>Expected Revenue</span>
+
+              <strong>
+                ₹{{ recommendation.expected_revenue | number:'1.0-0' }}
+              </strong>
+            </div>
+
+          </div>
+
+
+          <div class="reason">
+
+            <span class="eyebrow">WHY?</span>
+
+            <p>
+              {{ recommendation.reason }}
+            </p>
+
+          </div>
+
+
+          <div class="alternatives">
+
+            <span class="eyebrow">
+              ACTION COMPARISON
+            </span>
+
+            <div
+              class="alternative"
+              *ngFor="let action of recommendation.alternatives"
+            >
+
+              <span>
+                {{ formatAction(action.action) }}
+              </span>
+
+              <strong>
+                {{ action.recovery_probability | percent:'1.0-2' }}
+              </strong>
+
+              <span>
+                ₹{{ action.expected_revenue | number:'1.0-0' }}
+              </span>
+
+            </div>
+
+          </div>
+
+
+          <button class="action-button">
+            Execute Recovery Action
+          </button>
+
+        </div>
+
+      </div>
+
+    </aside>
+
+  </div>
+
+</div>
