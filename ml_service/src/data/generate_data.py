@@ -1,62 +1,73 @@
-import pandas as pd
+import os
 import numpy as np
-from datetime import datetime, timedelta
+import pandas as pd
 
-np.random.seed(42)
 
 # ============================================================
 # CONFIG
 # ============================================================
 
-NUM_CUSTOMERS = 20000
-NUM_TRANSACTIONS = 100000
+SEED = 42
 
-OUTPUT_DIR = "data"
+N_CUSTOMERS = 20_000
+N_TRANSACTIONS = 100_000
+
+np.random.seed(SEED)
+
 
 # ============================================================
-# HELPERS
+# PATHS
 # ============================================================
 
-def random_date(start, end, n):
-    start_ts = start.timestamp()
-    end_ts = end.timestamp()
-
-    return pd.to_datetime(
-        np.random.uniform(start_ts, end_ts, n),
-        unit="s"
+BASE_DIR = os.path.dirname(
+    os.path.dirname(
+        os.path.dirname(
+            os.path.abspath(__file__)
+        )
     )
+)
+
+RAW_DIR = os.path.join(BASE_DIR, "data", "raw")
+
+os.makedirs(RAW_DIR, exist_ok=True)
+
+
+# ============================================================
+# HELPER
+# ============================================================
+
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
 
 # ============================================================
 # 1. CUSTOMERS
 # ============================================================
 
-customer_ids = [
-    f"CUST{i:06d}"
-    for i in range(1, NUM_CUSTOMERS + 1)
-]
+print("Generating customers...")
 
-customer_tenure = np.random.randint(
-    30, 1500, NUM_CUSTOMERS
+customer_ids = np.array([
+    f"CUST_{i:06d}"
+    for i in range(1, N_CUSTOMERS + 1)
+])
+
+customer_tenure_days = np.random.randint(
+    1, 2000, N_CUSTOMERS
 )
 
-total_transactions = np.random.poisson(
-    15, NUM_CUSTOMERS
-) + 1
+total_transactions = np.random.randint(
+    3, 100, N_CUSTOMERS
+)
 
 historical_success_rate = np.clip(
-    np.random.beta(8, 2, NUM_CUSTOMERS),
+    np.random.beta(8, 2, N_CUSTOMERS),
     0.40,
     0.99
 )
 
-successful_transactions = np.array([
-    np.random.binomial(
-        total_transactions[i],
-        historical_success_rate[i]
-    )
-    for i in range(NUM_CUSTOMERS)
-])
+successful_transactions = (
+    total_transactions * historical_success_rate
+).astype(int)
 
 failed_transactions = (
     total_transactions - successful_transactions
@@ -64,106 +75,159 @@ failed_transactions = (
 
 avg_transaction_amount = np.round(
     np.random.lognormal(
-        mean=7,
+        mean=np.log(1500),
         sigma=0.8,
-        size=NUM_CUSTOMERS
+        size=N_CUSTOMERS
     ),
     2
 )
 
 days_since_last_success = np.random.randint(
-    1, 90, NUM_CUSTOMERS
+    0, 90, N_CUSTOMERS
 )
 
-# Customer segment based partly on behavior/value
+customer_segment = np.random.choice(
+    [
+        "regular",
+        "new",
+        "high_value",
+        "churn_risk"
+    ],
+    size=N_CUSTOMERS,
+    p=[
+        0.50,
+        0.20,
+        0.15,
+        0.15
+    ]
+)
 
-customer_segment = []
 
-for i in range(NUM_CUSTOMERS):
+# Make segment behavior meaningful
+high_value_mask = customer_segment == "high_value"
+new_mask = customer_segment == "new"
+churn_mask = customer_segment == "churn_risk"
 
-    if avg_transaction_amount[i] > 10000:
-        segment = "high_value"
+avg_transaction_amount[high_value_mask] *= np.random.uniform(
+    2.5, 5.0, high_value_mask.sum()
+)
 
-    elif historical_success_rate[i] < 0.60:
-        segment = "churn_risk"
+historical_success_rate[churn_mask] = np.clip(
+    historical_success_rate[churn_mask] - np.random.uniform(
+        0.15, 0.30, churn_mask.sum()
+    ),
+    0.40,
+    0.85
+)
 
-    elif total_transactions[i] <= 5:
-        segment = "new"
-
-    else:
-        segment = "regular"
-
-    customer_segment.append(segment)
+historical_success_rate[new_mask] = np.clip(
+    historical_success_rate[new_mask] - np.random.uniform(
+        0.02, 0.08, new_mask.sum()
+    ),
+    0.40,
+    0.95
+)
 
 
 customers = pd.DataFrame({
-
     "customer_id": customer_ids,
-
-    "customer_tenure_days": customer_tenure,
-
+    "customer_tenure_days": customer_tenure_days,
     "total_transactions": total_transactions,
-
     "successful_transactions": successful_transactions,
-
     "failed_transactions": failed_transactions,
-
-    "historical_success_rate": np.round(
-        historical_success_rate, 3
-    ),
-
+    "historical_success_rate": historical_success_rate,
     "avg_transaction_amount": avg_transaction_amount,
-
     "days_since_last_success": days_since_last_success,
-
     "customer_segment": customer_segment
 })
 
+customers_path = os.path.join(
+    RAW_DIR,
+    "customers.csv"
+)
+
+customers.to_csv(
+    customers_path,
+    index=False
+)
+
+print(f"Customers generated: {len(customers):,}")
+
+
+# ============================================================
+# CUSTOMER LOOKUPS
+# ============================================================
+
+customer_success_map = dict(
+    zip(
+        customer_ids,
+        historical_success_rate
+    )
+)
+
+customer_avg_amount_map = dict(
+    zip(
+        customer_ids,
+        avg_transaction_amount
+    )
+)
 
 # ============================================================
 # 2. TRANSACTIONS
 # ============================================================
 
-transaction_ids = [
-    f"TXN{i:08d}"
-    for i in range(1, NUM_TRANSACTIONS + 1)
-]
+print("Generating transactions...")
+
+transaction_ids = np.array([
+    f"TXN_{i:07d}"
+    for i in range(1, N_TRANSACTIONS + 1)
+])
 
 transaction_customer_ids = np.random.choice(
     customer_ids,
-    NUM_TRANSACTIONS
+    N_TRANSACTIONS
 )
 
-# Create lookup for customer attributes
+transaction_success_rates = np.array([
+    customer_success_map[cid]
+    for cid in transaction_customer_ids
+])
 
-customer_lookup = customers.set_index("customer_id")
+transaction_avg_amounts = np.array([
+    customer_avg_amount_map[cid]
+    for cid in transaction_customer_ids
+])
 
-transaction_amounts = []
 
-for cid in transaction_customer_ids:
+# ============================================================
+# AMOUNT
+# ============================================================
 
-    avg = customer_lookup.loc[
-        cid, "avg_transaction_amount"
-    ]
+amounts = np.random.lognormal(
+    mean=np.log(
+        np.maximum(
+            transaction_avg_amounts,
+            100
+        )
+    ),
+    sigma=0.30
+)
 
-    amount = np.random.lognormal(
-        np.log(max(avg, 100)),
-        0.45
-    )
+amounts = np.round(amounts, 2)
 
-    transaction_amounts.append(
-        round(amount, 2)
-    )
 
+# ============================================================
+# PAYMENT METHOD
+# ============================================================
 
 payment_methods = np.random.choice(
     [
         "card",
-        "upi",
+        "UPI",
         "netbanking",
         "wallet"
     ],
-    NUM_TRANSACTIONS,
+    N_TRANSACTIONS,
     p=[
         0.35,
         0.40,
@@ -173,57 +237,66 @@ payment_methods = np.random.choice(
 )
 
 
-# Recurring payments are important for our use case
+# ============================================================
+# PAYMENT GATEWAY
+# ============================================================
 
-is_recurring = np.random.choice(
-    [True, False],
-    NUM_TRANSACTIONS,
-    p=[0.70, 0.30]
+payment_gateways = np.random.choice(
+    [
+        "Razorpay",
+        "Stripe",
+        "PayU"
+    ],
+    N_TRANSACTIONS,
+    p=[
+        0.75,
+        0.15,
+        0.10
+    ]
 )
 
 
-# Attempt number
+# ============================================================
+# RECURRING
+# ============================================================
+
+is_recurring = np.random.choice(
+    [0, 1],
+    N_TRANSACTIONS,
+    p=[0.30, 0.70]
+)
+
+
+# ============================================================
+# ATTEMPT NUMBER
+# ============================================================
 
 attempt_number = np.random.choice(
     [1, 2, 3],
-    NUM_TRANSACTIONS,
+    N_TRANSACTIONS,
     p=[0.80, 0.15, 0.05]
 )
 
 
-# Failure probability
+# ============================================================
+# MERCHANT
+# ============================================================
 
-failure_probability = np.zeros(NUM_TRANSACTIONS)
-
-
-for i, cid in enumerate(transaction_customer_ids):
-
-    success_rate = customer_lookup.loc[
-        cid,
-        "historical_success_rate"
-    ]
-
-    failure_probability[i] = (
-        0.08
-        + (1 - success_rate) * 0.25
-        + (attempt_number[i] - 1) * 0.05
-    )
-
-
-failure_probability = np.clip(
-    failure_probability,
-    0.03,
-    0.50
+merchant_ids = np.random.choice(
+    [
+        "MERCHANT_001",
+        "MERCHANT_002",
+        "MERCHANT_003",
+        "MERCHANT_004",
+        "MERCHANT_005"
+    ],
+    N_TRANSACTIONS
 )
 
 
-is_failed = (
-    np.random.random(NUM_TRANSACTIONS)
-    < failure_probability
-)
-
-
-# Failure reasons
+# ============================================================
+# FAILURE
+# ============================================================
 
 failure_reasons = [
     "insufficient_funds",
@@ -235,7 +308,7 @@ failure_reasons = [
     "mandate_failed"
 ]
 
-failure_reason_probability = [
+failure_probabilities = [
     0.25,
     0.20,
     0.10,
@@ -246,457 +319,819 @@ failure_reason_probability = [
 ]
 
 
-failure_reason = np.array(
-    np.random.choice(
-        failure_reasons,
-        NUM_TRANSACTIONS,
-        p=failure_reason_probability
-    )
+failure_probability = (
+    0.08
+    + (1 - transaction_success_rates) * 0.25
+    + (attempt_number - 1) * 0.05
 )
 
-failure_reason[~is_failed] = "none"
+failure_probability = np.clip(
+    failure_probability,
+    0.03,
+    0.50
+)
+
+failed_mask = (
+    np.random.random(N_TRANSACTIONS)
+    < failure_probability
+)
+
+failure_reason_list = np.full(
+    N_TRANSACTIONS,
+    "none",
+    dtype=object
+)
+
+failure_reason_list[failed_mask] = np.random.choice(
+    failure_reasons,
+    size=failed_mask.sum(),
+    p=failure_probabilities
+)
 
 
-# Failure codes
+# ============================================================
+# FAILURE CODES
+# ============================================================
 
 failure_code_map = {
-
     "insufficient_funds": "INSUFFICIENT_FUNDS",
-
     "bank_declined": "BANK_DECLINED",
-
-    "expired_card": "CARD_EXPIRED",
-
+    "expired_card": "EXPIRED_CARD",
     "authentication_failed": "AUTH_FAILED",
-
     "network_error": "NETWORK_ERROR",
-
     "limit_exceeded": "LIMIT_EXCEEDED",
-
     "mandate_failed": "MANDATE_FAILED",
-
-    "none": "SUCCESS"
+    "none": None
 }
 
-
-failure_code = [
+failure_codes = np.array([
     failure_code_map[x]
-    for x in failure_reason
-]
+    for x in failure_reason_list
+], dtype=object)
 
 
-# Dates
+# ============================================================
+# TIMESTAMPS
+# ============================================================
 
-start_date = datetime.now() - timedelta(days=365)
+timestamps = pd.date_range(
+    end=pd.Timestamp.now(),
+    periods=N_TRANSACTIONS,
+    freq="min"
+)
 
-end_date = datetime.now()
-
-transaction_dates = random_date(
-    start_date,
-    end_date,
-    NUM_TRANSACTIONS
+timestamps = np.random.choice(
+    timestamps,
+    N_TRANSACTIONS,
+    replace=False
 )
 
 
-# Payment gateway
+# ============================================================
+# SUBSCRIPTIONS
+# ============================================================
 
-payment_gateways = np.random.choice(
+subscription_ids = np.array(
     [
-        "razorpay",
-        "stripe",
-        "payu"
+        f"SUB_{np.random.randint(1, 30000):06d}"
+        if recurring == 1
+        else None
+        for recurring in is_recurring
     ],
-    NUM_TRANSACTIONS,
-    p=[
-        0.75,
-        0.15,
-        0.10
-    ]
+    dtype=object
 )
 
 
-subscription_ids = []
-
-for i in range(NUM_TRANSACTIONS):
-
-    if is_recurring[i]:
-
-        subscription_ids.append(
-            f"SUB{np.random.randint(1, 15000):06d}"
-        )
-
-    else:
-
-        subscription_ids.append("none")
-
-
-merchant_ids = np.random.choice(
-    [
-        "MERCHANT_001",
-        "MERCHANT_002",
-        "MERCHANT_003",
-        "MERCHANT_004",
-        "MERCHANT_005"
-    ],
-    NUM_TRANSACTIONS
-)
-
+# ============================================================
+# TRANSACTION DATAFRAME
+# ============================================================
 
 transactions = pd.DataFrame({
 
-    "transaction_id": transaction_ids,
+    "transaction_id":
+        transaction_ids,
 
-    "customer_id": transaction_customer_ids,
+    "customer_id":
+        transaction_customer_ids,
 
-    "merchant_id": merchant_ids,
+    "merchant_id":
+        merchant_ids,
 
-    "subscription_id": subscription_ids,
+    "subscription_id":
+        subscription_ids,
 
-    "amount": transaction_amounts,
+    "amount":
+        amounts,
 
-    "currency": "INR",
+    "currency":
+        "INR",
 
-    "payment_method": payment_methods,
+    "payment_method":
+        payment_methods,
 
-    "payment_gateway": payment_gateways,
+    "payment_gateway":
+        payment_gateways,
 
-    "transaction_timestamp": transaction_dates,
+    "transaction_timestamp":
+        timestamps,
 
-    "failure_reason": failure_reason,
+    "failure_reason":
+        failure_reason_list,
 
-    "failure_code": failure_code,
+    "failure_code":
+        failure_codes,
 
-    "is_recurring": is_recurring,
+    "is_recurring":
+        is_recurring,
 
-    "attempt_number": attempt_number
+    "attempt_number":
+        attempt_number
 })
 
 
+transactions_path = os.path.join(
+    RAW_DIR,
+    "transactions.csv"
+)
+
+transactions.to_csv(
+    transactions_path,
+    index=False
+)
+
+print(
+    f"Transactions generated: "
+    f"{len(transactions):,}"
+)
+
+
 # ============================================================
-# 3. RECOVERY EVENTS
+# 3. FAILED TRANSACTIONS
 # ============================================================
+
+print(
+    "\nGenerating action-level recovery dataset..."
+)
 
 failed_transactions = transactions[
     transactions["failure_reason"] != "none"
 ].copy()
 
+failed_transactions = failed_transactions.merge(
+    customers,
+    on="customer_id",
+    how="left"
+)
 
-recovery_events = []
+print(
+    f"Failed transactions: "
+    f"{len(failed_transactions):,}"
+)
 
-channels = [
-    "sms",
-    "email",
-    "whatsapp",
-    "push"
+
+# ============================================================
+# ACTIONS
+# ============================================================
+
+ACTIONS = [
+    "retry",
+    "reminder",
+    "payment_link",
+    "escalate"
 ]
 
 
-for _, txn in failed_transactions.iterrows():
+# ============================================================
+# ACTION COST
+# ============================================================
 
-    cid = txn["customer_id"]
+ACTION_COST = {
 
-    customer = customer_lookup.loc[cid]
+    "retry": 2.0,
 
-    failure = txn["failure_reason"]
+    "reminder": 1.0,
 
-    success_rate = customer[
-        "historical_success_rate"
+    "payment_link": 3.0,
+
+    "escalate": 8.0
+}
+
+
+# ============================================================
+# CUSTOMER FRICTION
+# ============================================================
+
+ACTION_FRICTION = {
+
+    "retry": 0.02,
+
+    "reminder": 0.05,
+
+    "payment_link": 0.08,
+
+    "escalate": 0.15
+}
+
+
+# ============================================================
+# FAILURE × ACTION EFFECT
+#
+# Stronger relationships than previous version.
+# ============================================================
+
+ACTION_EFFECT = {
+
+    "insufficient_funds": {
+
+        "retry": -1.00,
+
+        "reminder": 0.80,
+
+        "payment_link": 0.50,
+
+        "escalate": -0.70
+    },
+
+    "bank_declined": {
+
+        "retry": -0.45,
+
+        "reminder": 0.30,
+
+        "payment_link": 0.60,
+
+        "escalate": 0.10
+    },
+
+    "expired_card": {
+
+        "retry": -1.20,
+
+        "reminder": 0.10,
+
+        "payment_link": 1.00,
+
+        "escalate": -0.10
+    },
+
+    "authentication_failed": {
+
+        "retry": -0.90,
+
+        "reminder": 0.30,
+
+        "payment_link": 0.90,
+
+        "escalate": 0.00
+    },
+
+    "network_error": {
+
+        "retry": 1.20,
+
+        "reminder": -0.20,
+
+        "payment_link": -0.30,
+
+        "escalate": -0.80
+    },
+
+    "limit_exceeded": {
+
+        "retry": -0.80,
+
+        "reminder": 0.40,
+
+        "payment_link": 0.90,
+
+        "escalate": -0.10
+    },
+
+    "mandate_failed": {
+
+        "retry": 0.60,
+
+        "reminder": 0.20,
+
+        "payment_link": 0.80,
+
+        "escalate": 0.40
+    }
+}
+
+
+# ============================================================
+# BASE FAILURE EFFECT
+# ============================================================
+
+FAILURE_BASE_EFFECT = {
+
+    "insufficient_funds": -0.25,
+
+    "bank_declined": -0.15,
+
+    "expired_card": -0.20,
+
+    "authentication_failed": -0.20,
+
+    "network_error": 0.45,
+
+    "limit_exceeded": 0.00,
+
+    "mandate_failed": -0.15
+}
+
+
+# ============================================================
+# 4. GENERATE ACTION DATA
+# ============================================================
+
+records = []
+
+
+for _, row in failed_transactions.iterrows():
+
+    # --------------------------------------------------------
+    # CUSTOMER BASE SCORE
+    # --------------------------------------------------------
+
+    base_score = (
+        -0.80
+        + 3.0 * row["historical_success_rate"]
+    )
+
+
+    # --------------------------------------------------------
+    # TENURE
+    # --------------------------------------------------------
+
+    if row["customer_tenure_days"] > 365:
+
+        base_score += 0.25
+
+    elif row["customer_tenure_days"] < 30:
+
+        base_score -= 0.15
+
+
+    # --------------------------------------------------------
+    # CUSTOMER SEGMENT
+    # --------------------------------------------------------
+
+    if row["customer_segment"] == "high_value":
+
+        base_score += 0.25
+
+    elif row["customer_segment"] == "new":
+
+        base_score -= 0.10
+
+    elif row["customer_segment"] == "churn_risk":
+
+        base_score -= 0.45
+
+
+    # --------------------------------------------------------
+    # FAILURE TYPE
+    # --------------------------------------------------------
+
+    base_score += FAILURE_BASE_EFFECT[
+        row["failure_reason"]
     ]
 
-    segment = customer[
-        "customer_segment"
-    ]
 
     # --------------------------------------------------------
-    # Recovery probability
+    # ATTEMPTS
     # --------------------------------------------------------
 
-    score = (
-        1.5 * success_rate
-        - 0.25 * (txn["attempt_number"] - 1)
-        + 0.25 * (segment == "high_value")
-        - 0.30 * (segment == "churn_risk")
-    )
-
-    # Failure-specific effect
-
-    if failure == "network_error":
-        score += 0.50
-
-    elif failure == "insufficient_funds":
-        score -= 0.30
-
-    elif failure == "bank_declined":
-        score -= 0.15
-
-    elif failure == "authentication_failed":
-        score -= 0.10
-
-    elif failure == "mandate_failed":
-        score -= 0.20
-
-
-    recovery_probability = (
-        1 / (1 + np.exp(-score))
-    )
-
-    recovery_probability = np.clip(
-        recovery_probability,
-        0.05,
-        0.95
+    base_score -= (
+        0.30 *
+        (row["attempt_number"] - 1)
     )
 
 
-    # --------------------------------------------------------
-    # Action selection
-    # --------------------------------------------------------
+    # ========================================================
+    # EVERY POSSIBLE ACTION
+    # ========================================================
 
-    if failure == "network_error":
+    for action in ACTIONS:
 
-        action = np.random.choice(
-            ["retry", "payment_link"],
-            p=[0.75, 0.25]
-        )
-
-    elif failure == "insufficient_funds":
-
-        action = np.random.choice(
-            ["reminder", "payment_link"],
-            p=[0.65, 0.35]
-        )
-
-    elif failure == "authentication_failed":
-
-        action = np.random.choice(
-            ["payment_link", "reminder"],
-            p=[0.70, 0.30]
-        )
-
-    elif failure == "bank_declined":
-
-        action = np.random.choice(
-            ["retry", "payment_link", "reminder"],
-            p=[0.45, 0.30, 0.25]
-        )
-
-    elif failure == "expired_card":
-
-        action = "payment_link"
-
-    elif failure == "limit_exceeded":
-
-        action = np.random.choice(
-            ["payment_link", "reminder"],
-            p=[0.60, 0.40]
-        )
-
-    else:
-
-        action = np.random.choice(
-            ["retry", "payment_link", "escalate"],
-            p=[0.40, 0.40, 0.20]
+        score = (
+            base_score
+            + ACTION_EFFECT[
+                row["failure_reason"]
+            ][action]
         )
 
 
-    # --------------------------------------------------------
-    # Channel
-    # --------------------------------------------------------
+        # ----------------------------------------------------
+        # PAYMENT METHOD × ACTION INTERACTION
+        # ----------------------------------------------------
 
-    if action == "retry":
+        if (
+            row["payment_method"] == "UPI"
+            and action == "retry"
+        ):
+            score += 0.25
 
-        channel = "system"
+        if (
+            row["payment_method"] == "card"
+            and action == "payment_link"
+        ):
+            score += 0.20
 
-    else:
+        if (
+            row["payment_method"] == "netbanking"
+            and action == "payment_link"
+        ):
+            score += 0.15
 
-        channel = np.random.choice(
-            channels,
-            p=[
-                0.25,
-                0.30,
-                0.30,
-                0.15
+
+        # ----------------------------------------------------
+        # RECURRING PAYMENT
+        # ----------------------------------------------------
+
+        if row["is_recurring"] == 1:
+
+            score += 0.15
+
+
+        # ----------------------------------------------------
+        # HIGH VALUE CUSTOMER
+        # ----------------------------------------------------
+
+        if (
+            row["customer_segment"] == "high_value"
+            and action in [
+                "payment_link",
+                "reminder"
             ]
-        )
+        ):
+
+            score += 0.15
 
 
-    # --------------------------------------------------------
-    # Retry delay
-    # --------------------------------------------------------
+        # ----------------------------------------------------
+        # VERY LARGE TRANSACTION
+        # ----------------------------------------------------
 
-    if action == "retry":
+        if row["amount"] > 10000:
 
-        if failure == "network_error":
+            if action == "reminder":
+
+                score += 0.20
+
+            elif action == "escalate":
+
+                score += 0.15
+
+
+        # ----------------------------------------------------
+        # DAYS SINCE SUCCESS
+        # ----------------------------------------------------
+
+        if row["days_since_last_success"] > 45:
+
+            score -= 0.15
+
+
+        # ----------------------------------------------------
+        # ACTION-SPECIFIC TIMING
+        # ----------------------------------------------------
+
+        if action == "retry":
+
+            if row["failure_reason"] == "network_error":
+
+                retry_delay = np.random.choice(
+                    [0.1, 0.5, 1, 2]
+                )
+
+            else:
+
+                retry_delay = np.random.choice(
+                    [2, 6, 12, 24]
+                )
+
+        elif action == "reminder":
+
             retry_delay = np.random.choice(
-                [0.25, 1, 2]
+                [6, 12, 24]
+            )
+
+        elif action == "payment_link":
+
+            retry_delay = np.random.choice(
+                [1, 6, 12]
             )
 
         else:
+
             retry_delay = np.random.choice(
-                [2, 6, 12, 24]
+                [12, 24, 48]
             )
 
-    elif action == "reminder":
 
-        retry_delay = np.random.choice(
-            [6, 12, 24]
+        # ----------------------------------------------------
+        # TIMING EFFECT
+        # ----------------------------------------------------
+
+        if (
+            action == "retry"
+            and row["failure_reason"] == "network_error"
+            and retry_delay <= 1
+        ):
+
+            score += 0.20
+
+
+        # ----------------------------------------------------
+        # PROBABILITY
+        # ----------------------------------------------------
+
+        probability = sigmoid(score)
+
+        probability = np.clip(
+            probability,
+            0.05,
+            0.95
         )
 
-    elif action == "payment_link":
 
-        retry_delay = 0
+        # ----------------------------------------------------
+        # REALISTIC RANDOMNESS
+        # ----------------------------------------------------
 
-    else:
-
-        retry_delay = 48
-
-
-    # --------------------------------------------------------
-    # Actual recovery
-    # --------------------------------------------------------
-
-    recovered = np.random.random() < recovery_probability
-
-
-    if recovered:
-
-        recovery_time = round(
-            np.random.exponential(
-                max(retry_delay, 1)
-            ),
-            2
+        probability += np.random.normal(
+            0,
+            0.015
         )
 
-        recovered_amount = txn["amount"]
-
-    else:
-
-        recovery_time = np.nan
-
-        recovered_amount = 0
+        probability = np.clip(
+            probability,
+            0.03,
+            0.97
+        )
 
 
-    recovery_events.append({
+        # ----------------------------------------------------
+        # OUTCOME
+        # ----------------------------------------------------
 
-        "recovery_event_id":
-            f"REC{len(recovery_events) + 1:08d}",
-
-        "transaction_id":
-            txn["transaction_id"],
-
-        "customer_id":
-            txn["customer_id"],
-
-        "failure_reason":
-            failure,
-
-        "action_taken":
-            action,
-
-        "action_timestamp":
-            txn["transaction_timestamp"]
-            + timedelta(
-                hours=float(
-                    max(retry_delay, 0)
-                )
-            ),
-
-        "channel":
-            channel,
-
-        "retry_delay_hours":
-            retry_delay,
-
-        "recovery_probability":
-            round(
-                recovery_probability,
-                4
-            ),
-
-        "recovered":
-            int(recovered),
-
-        "recovery_time_hours":
-            recovery_time,
-
-        "recovered_amount":
-            recovered_amount
-    })
+        recovered = np.random.binomial(
+            1,
+            probability
+        )
 
 
-recovery_events = pd.DataFrame(
-    recovery_events
+        # ----------------------------------------------------
+        # CHANNEL
+        # ----------------------------------------------------
+
+        if action == "retry":
+
+            channel = "system"
+
+        else:
+
+            channel = np.random.choice(
+                [
+                    "email",
+                    "sms",
+                    "whatsapp",
+                    "push"
+                ]
+            )
+
+
+        # ----------------------------------------------------
+        # RECOVERY TIME
+        # ----------------------------------------------------
+
+        if recovered:
+
+            recovery_time = round(
+                np.random.exponential(
+                    scale=max(
+                        retry_delay,
+                        1
+                    )
+                ),
+                2
+            )
+
+            recovered_amount = row["amount"]
+
+        else:
+
+            recovery_time = None
+
+            recovered_amount = 0
+
+
+        # ----------------------------------------------------
+        # STORE RECORD
+        # ----------------------------------------------------
+
+        records.append({
+
+            "transaction_id":
+                row["transaction_id"],
+
+            "customer_id":
+                row["customer_id"],
+
+            "merchant_id":
+                row["merchant_id"],
+
+            "subscription_id":
+                row["subscription_id"],
+
+            "amount":
+                row["amount"],
+
+            "currency":
+                row["currency"],
+
+            "payment_method":
+                row["payment_method"],
+
+            "payment_gateway":
+                row["payment_gateway"],
+
+            "transaction_timestamp":
+                row["transaction_timestamp"],
+
+            "failure_reason":
+                row["failure_reason"],
+
+            "failure_code":
+                row["failure_code"],
+
+            "is_recurring":
+                row["is_recurring"],
+
+            "attempt_number":
+                row["attempt_number"],
+
+            "customer_tenure_days":
+                row["customer_tenure_days"],
+
+            "total_transactions":
+                row["total_transactions"],
+
+            "successful_transactions":
+                row["successful_transactions"],
+
+            "failed_transactions":
+                row["failed_transactions"],
+
+            "historical_success_rate":
+                row["historical_success_rate"],
+
+            "avg_transaction_amount":
+                row["avg_transaction_amount"],
+
+            "days_since_last_success":
+                row["days_since_last_success"],
+
+            "customer_segment":
+                row["customer_segment"],
+
+            "action":
+                action,
+
+            "channel":
+                channel,
+
+            "retry_delay_hours":
+                retry_delay,
+
+            "recovery_probability":
+                probability,
+
+            "recovered":
+                recovered,
+
+            "recovery_time_hours":
+                recovery_time,
+
+            "recovered_amount":
+                recovered_amount,
+
+            "action_cost":
+                ACTION_COST[action],
+
+            "customer_friction":
+                ACTION_FRICTION[action]
+        })
+
+
+# ============================================================
+# 5. CREATE DATAFRAME
+# ============================================================
+
+recovery_dataset = pd.DataFrame(
+    records
 )
 
 
 # ============================================================
-# SAVE
+# 6. SAVE
 # ============================================================
 
-import os
-
-os.makedirs(
-    OUTPUT_DIR,
-    exist_ok=True
+recovery_dataset_path = os.path.join(
+    RAW_DIR,
+    "recovery_action_dataset.csv"
 )
 
-customers.to_csv(
-    f"{OUTPUT_DIR}/customers.csv",
+recovery_dataset.to_csv(
+    recovery_dataset_path,
     index=False
 )
 
-transactions.to_csv(
-    f"{OUTPUT_DIR}/transactions.csv",
-    index=False
-)
-
-recovery_events.to_csv(
-    f"{OUTPUT_DIR}/recovery_events.csv",
-    index=False
-)
-
 
 # ============================================================
-# SUMMARY
+# 7. REPORT
 # ============================================================
 
-print("\n===================================")
-print("DATASET GENERATION COMPLETE")
-print("===================================")
+print("\n")
+print("==============================================")
+print("DATA GENERATION COMPLETE")
+print("==============================================")
+
 
 print(
-    f"Customers:       {len(customers):,}"
+    f"Customers: "
+    f"{len(customers):,}"
 )
 
 print(
-    f"Transactions:    {len(transactions):,}"
+    f"Transactions: "
+    f"{len(transactions):,}"
 )
 
 print(
-    f"Failed payments: "
+    f"Failed transactions: "
     f"{len(failed_transactions):,}"
 )
 
 print(
-    f"Recovery events: "
-    f"{len(recovery_events):,}"
+    f"Action training rows: "
+    f"{len(recovery_dataset):,}"
 )
+
+
+print("\nCustomer segments:")
+
+print(
+    customers[
+        "customer_segment"
+    ].value_counts()
+)
+
 
 print("\nFailure distribution:")
 
 print(
     transactions[
-        transactions["failure_reason"] != "none"
-    ]["failure_reason"].value_counts()
+        "failure_reason"
+    ].value_counts()
 )
 
-print("\nRecovery rate:")
+
+print("\nRecovery rate by action:")
 
 print(
-    recovery_events["recovered"].mean()
+    recovery_dataset
+    .groupby("action")["recovered"]
+    .mean()
+    .sort_values(
+        ascending=False
+    )
+    .round(3)
 )
 
-print("\nFiles created:")
 
-print("data/customers.csv")
-print("data/transactions.csv")
-print("data/recovery_events.csv")
+print("\nRecovery rate by failure + action:")
+
+print(
+    recovery_dataset
+    .groupby(
+        [
+            "failure_reason",
+            "action"
+        ]
+    )["recovered"]
+    .mean()
+    .round(3)
+)
+
+
+print("\nFiles written:")
+
+print(customers_path)
+print(transactions_path)
+print(recovery_dataset_path)
+
+print("\nDone.")
