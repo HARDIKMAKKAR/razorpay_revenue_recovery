@@ -2,317 +2,326 @@
 
 > AI-powered payment failure recovery for subscription businesses.
 
-An AI-powered full-stack system that helps merchants **recover revenue lost due to failed recurring payments**.
+## 🏆 Built for the Razorpay Hackathon — Track 3: AI Revenue Recovery
 
-Instead of blindly retrying every failed payment, the system analyzes the **payment failure, customer history, transaction context, and previous behavior** to predict the probability of recovery and recommend the most suitable recovery action.
+This project was built as a hackathon prototype for Razorpay's AI Revenue Recovery track.
+
+The goal is to build an intelligent layer that helps merchants make better recovery decisions after a recurring payment fails.
+
+Instead of treating every failed payment the same way, the system analyzes the payment failure, customer history, transaction context, and proposed recovery action to estimate the probability of successful recovery and recommend the most suitable action.
 
 ---
 
-## 📑 Table of Contents
+# 📌 Overview
 
-- [Problem](#-problem)
-- [Solution](#-solution)
-- [Key Idea](#-key-idea)
-- [How It Works](#-how-it-works)
-- [Example](#-example)
-- [System Architecture](#-system-architecture)
-- [Machine Learning](#-machine-learning)
-- [Recovery Decision Engine](#-recovery-decision-engine)
-- [Merchant Dashboard](#-merchant-dashboard)
-- [Dataset](#-dataset)
-- [Project Structure](#-project-structure)
-- [Technology Stack](#-technology-stack)
-- [End-to-End Flow](#-end-to-end-flow)
-- [API Architecture](#-api-architecture)
-- [Running the Project](#-running-the-project)
-- [Development Roadmap](#-development-roadmap)
-- [Future Improvements](#-future-improvements)
-- [Disclaimer](#-disclaimer)
+A failed recurring payment does not necessarily mean lost revenue.
+
+Different failures require different recovery strategies.
+
+For example:
+
+- A temporary network error may be suitable for a retry.
+- Insufficient funds may require a reminder or payment link.
+- An expired card may require an alternative payment method.
+- A repeated or complex mandate failure may require escalation.
+
+The **Intelligent Revenue Recovery System** combines:
+
+1. Machine Learning
+2. Failure-aware business rules
+3. Expected revenue optimization
+4. Node.js backend APIs
+5. Flask ML service
+6. Angular merchant dashboard
+
+to determine:
+
+> **"What is the best next action to recover this revenue?"**
+
+---
+
+# 🎯 Hackathon Objective
+
+The objective of this project is to move beyond a simple fixed retry strategy.
+
+Instead of asking:
+
+> "Should we retry this payment?"
+
+the system asks:
+
+> **"Given this payment failure and customer context, what recovery action is most likely to recover the revenue while minimizing unnecessary cost and customer friction?"**
 
 ---
 
 # 🔴 Problem
 
-Failed payments are a major source of revenue leakage for subscription-based businesses.
+Failed payments are a major source of potential revenue leakage for subscription-based businesses.
 
 A failed payment does **not necessarily mean that the customer has churned**.
 
-Different payment failures have different causes and therefore require different recovery strategies.
+The cause of the failure matters.
 
-For example:
-
-| Failure Reason | Possible Recovery Strategy |
+| Failure Reason | Suitable Recovery Strategy |
 |---|---|
-| Network Error | Retry quickly |
-| Insufficient Funds | Remind customer later |
-| Authentication Failure | Send payment link |
-| Expired Card | Request payment method update |
-| Bank Decline | Retry later |
-| Mandate Failure | Payment link / alternate method |
-| Repeated Failures | Escalate or stop retries |
+| Network Error | Retry |
+| Insufficient Funds | Reminder / Payment Link |
+| Authentication Failure | Payment Link |
+| Expired Card | Payment Link |
+| Bank Declined | Reminder / Payment Link / Retry |
+| Limit Exceeded | Reminder / Payment Link |
+| Mandate Failure | Retry / Payment Link / Reminder / Escalation |
 
-A traditional recovery system often looks like:
+A simple fixed-retry strategy can look like:
 
 ```text
 Payment Failed
       ↓
-Wait fixed time
+Wait Fixed Time
       ↓
 Retry
       ↓
-Retry again
+Retry Again
       ↓
-Send generic reminder
+Generic Reminder
 ```
 
-The problem is that this strategy treats every customer and every failure in the same way.
+The problem with this approach is that it does not sufficiently account for the reason behind the failure or the customer's historical behavior.
 
-This can result in:
+This can lead to:
 
-Unnecessary payment retries
-Poor customer experience
-Excessive notifications
-Delayed revenue recovery
-Increased payment processing costs
-Revenue being permanently lost
-💡 Solution
+- Unnecessary payment retries
+- Poor customer experience
+- Excessive notifications
+- Delayed revenue recovery
+- Additional processing costs
+- Revenue remaining unrecovered
 
-We are building an AI-powered Revenue Recovery System that makes recovery decisions based on the context of each failed payment.
+---
 
-The system analyzes:
+# 💡 Solution
 
-Transaction Context
-Payment amount
-Payment method
-Payment gateway
-Failure reason
-Failure code
-Attempt number
-Recurring payment status
-Customer Context
-Customer tenure
-Total transactions
-Successful transactions
-Failed transactions
-Historical success rate
-Average transaction value
-Days since last successful payment
-Customer segment
+Our solution introduces an **AI-powered revenue recovery decision layer**.
 
-The ML model predicts:
+For every failed payment, the system evaluates:
 
-Probability that the failed payment can be recovered
+### Transaction Context
+
+- Payment amount
+- Payment method
+- Payment gateway
+- Failure reason
+- Attempt number
+- Recurring payment status
+
+### Customer Context
+
+- Customer tenure
+- Total transactions
+- Successful transactions
+- Failed transactions
+- Historical success rate
+- Average transaction amount
+- Days since last successful payment
+- Customer segment
+
+The ML model then estimates:
+
+```text
+P(payment will be recovered | context + action)
+```
+
+The decision engine then evaluates the valid recovery actions and selects the action with the highest expected revenue.
+
+---
+
+# 🧠 Key Idea
+
+The system separates two different questions.
+
+## 1. ML Model
+
+> **"How likely is this payment to be recovered if we take this action?"**
+
+The model predicts a recovery probability for each candidate action.
+
+Example:
+
+```text
+Failure: Insufficient Funds
+
+Payment Link
+Recovery Probability = 79.82%
+
+Reminder
+Recovery Probability = 73.29%
+```
+
+## 2. Decision Engine
+
+> **"What should we do next?"**
+
+The decision engine:
+
+1. Identifies the failure reason.
+2. Filters actions that are not appropriate for that failure.
+3. Gets the ML recovery probability for each valid action.
+4. Calculates expected revenue.
+5. Selects the highest-value action.
+
+This separation allows machine learning predictions to work together with business rules and economic considerations.
+
+---
+
+# 💰 Expected Revenue Optimization
+
+The decision engine calculates expected revenue as:
+
+```text
+Expected Revenue =
+    Recovery Probability × Payment Amount
+    − Action Cost
+    − Customer Friction
+```
 
 For example:
 
-Recovery Probability = 87%
+```text
+Payment Amount = ₹5,000
 
-The decision engine then determines the most appropriate action:
+Recovery Probability = 79.82%
 
-RETRY
-REMINDER
-PAYMENT LINK
-ESCALATE
-STOP
+Action Cost = ₹3
 
-The result is tracked and displayed to the merchant.
+Customer Friction = 8%
 
-🎯 Key Idea
+Expected Revenue ≈ ₹3,587.93
+```
 
-The system separates two different questions:
+The action with the highest expected revenue is selected.
 
-ML Model
+This means the system is not simply optimizing for prediction accuracy.
 
-"How likely is this payment to be recovered?"
+It is using the prediction to optimize for a **business outcome: expected recovered revenue**.
 
-Example:
+---
 
-Recovery Probability = 87%
-Decision Engine
+# ⚙️ How It Works
 
-"What should we do next?"
+The current hackathon MVP follows this flow:
 
-Example:
+```text
+                  Failed Payment
+                        │
+                        ▼
+               Angular Dashboard
+                        │
+                        ▼
+                Node.js Backend
+                        │
+                        ▼
+              Flask ML Service
+                        │
+                        ▼
+              Random Forest Model
+                        │
+                        ▼
+             Recovery Probabilities
+                        │
+                        ▼
+              Decision Engine
+                        │
+              ┌─────────┼─────────┐
+              ▼         ▼         ▼
+            RETRY    REMINDER   PAYMENT LINK
+                        │
+                        ▼
+                 Best Recommendation
+                        │
+                        ▼
+               Angular Dashboard
+```
 
-Failure Reason = Network Error
-Recovery Probability = 87%
-Attempt Number = 1
+The current prototype demonstrates the complete prediction and recommendation pipeline using synthetic payment data.
 
-        ↓
+---
 
-Recommended Action = RETRY
+# 🏗️ System Architecture
 
-This separation allows the system to combine machine learning with business logic.
+```text
+┌───────────────────────────┐
+│     Angular Dashboard     │
+│       Merchant UI         │
+└─────────────┬─────────────┘
+              │
+              │ HTTP
+              ▼
+┌───────────────────────────┐
+│    Node.js / Express      │
+│      Backend API          │
+└─────────────┬─────────────┘
+              │
+              │ Prediction Request
+              ▼
+┌───────────────────────────┐
+│     Python / Flask        │
+│       ML Service          │
+└─────────────┬─────────────┘
+              │
+              ▼
+┌───────────────────────────┐
+│   Random Forest Model     │
+│   Recovery Probability    │
+└─────────────┬─────────────┘
+              │
+              ▼
+┌───────────────────────────┐
+│    Recovery Decision      │
+│         Engine            │
+└─────────────┬─────────────┘
+              │
+              ▼
+      Recommended Action
 
-⚙️ How It Works
+---
 
-The complete system follows this pipeline:
+# 🤖 Machine Learning
 
-                    PAYMENT ATTEMPT
-                           │
-                           ▼
-                    Payment Failed
-                           │
-                           ▼
-                  Razorpay Webhook
-                           │
-                           ▼
-                    Node.js Backend
-                           │
-                           ▼
-              ┌────────────────────────┐
-              │ Customer + Transaction │
-              │ Context                │
-              └────────────┬───────────┘
-                           │
-                           ▼
-                     ML Service
-                           │
-                           ▼
-                Recovery Probability
-                           │
-                           ▼
-                  Decision Engine
-                           │
-          ┌────────────────┼────────────────┐
-          ▼                ▼                ▼
-        RETRY           REMINDER       PAYMENT LINK
-          │                │                │
-          └────────────────┼────────────────┘
-                           ▼
-                        Customer
-                           │
-                           ▼
-                    Payment Outcome
-                           │
-                  ┌────────┴────────┐
-                  ▼                 ▼
-               Recovered          Failed
-                  │                 │
-                  └────────┬────────┘
-                           ▼
-                       Analytics
-                           │
-                           ▼
-                    Merchant Dashboard
-🧪 Example
+## Objective
 
-Consider a failed recurring payment:
+The ML model predicts:
 
-Customer ID: CUST00123
-Amount: ₹8,500
-Payment Method: Card
-Failure Reason: Network Error
-Attempt Number: 1
-Recurring: Yes
+```text
+P(payment will be recovered | payment + customer + action)
+```
 
-Historical Success Rate: 91%
-Customer Tenure: 420 days
+This is formulated as a **binary classification problem**.
 
-The ML model receives these features and predicts:
+### Target
 
-Recovery Probability = 87%
-
-The decision engine evaluates:
-
-Failure = Network Error
-Probability = 87%
-Attempt = 1
-
-and recommends:
-
-Action = RETRY
-Retry Delay = 1 hour
-
-If the payment succeeds:
-
-Recovered Amount = ₹8,500
-
-The dashboard updates:
-
-Revenue Recovered
-₹8,500
-
-The recovery event is also stored as feedback for future analysis.
-
-🏗️ System Architecture
-
-The entire application is maintained as a single monorepo.
-
-                         ┌─────────────────┐
-                         │    Razorpay     │
-                         │   Webhook/API   │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                    ┌─────────────────────────┐
-                    │        Backend          │
-                    │     Node.js/Express     │
-                    └────────────┬────────────┘
-                                 │
-                         Prediction Request
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-                    │       ML Service        │
-                    │       Python/Flask      │
-                    └────────────┬────────────┘
-                                 │
-                        Recovery Probability
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-                    │    Recovery Decision    │
-                    │        Engine           │
-                    └────────────┬────────────┘
-                                 │
-             ┌───────────────────┼───────────────────┐
-             ▼                   ▼                   ▼
-           RETRY              REMINDER         PAYMENT LINK
-             │                   │                   │
-             └───────────────────┼───────────────────┘
-                                 ▼
-                             Customer
-                                 │
-                                 ▼
-                          Payment Outcome
-                                 │
-                                 ▼
-                             Analytics
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-                    │    Angular Dashboard    │
-                    │        Merchant         │
-                    └─────────────────────────┘
-🤖 Machine Learning
-Objective
-
-The first ML model predicts:
-
-P(payment will be recovered)
-
-This is a binary classification problem.
-
-Target Variable
+```text
 recovered
-
-Where:
 
 1 → Payment recovered
 0 → Payment not recovered
-Input Features
+```
 
-The model uses information available before the recovery action is taken.
+## Model Features
 
-Transaction Features
+### Transaction Features
+
+```text
 amount
 payment_method
 payment_gateway
-failure_reason
 is_recurring
 attempt_number
-Customer Features
+failure_reason
+```
+
+### Customer Features
+
+```text
 customer_tenure_days
 total_transactions
 successful_transactions
@@ -321,566 +330,546 @@ historical_success_rate
 avg_transaction_amount
 days_since_last_success
 customer_segment
-Data Leakage Prevention
+```
 
-The model must not use information that becomes available after the recovery decision.
+### Recovery Action
 
-Therefore the following fields are excluded from the initial prediction model:
+```text
+action
+```
 
-action_taken
-channel
-retry_delay_hours
-recovery_time_hours
+The action is included as a feature because the model estimates recovery probability conditional on the proposed intervention.
+
+## Data Leakage Prevention
+
+The model excludes post-outcome fields such as:
+
+```text
+recovery_probability
 recovered_amount
+recovery_time_hours
+action_cost
+customer_friction
+```
 
-These describe the recovery action or outcome and therefore cannot be used as prediction inputs.
+Model evaluation uses a **transaction-level group split** so different candidate actions from the same transaction cannot appear in both training and testing sets.
 
-Initial Model
+## Initial Model
 
-The initial model uses:
-
+```text
 Random Forest Classifier
+```
 
-Reasons:
+Current held-out evaluation:
 
-Handles nonlinear relationships
-Works well with mixed features
-Requires limited preprocessing
-Provides feature importance
-Fast enough for the hackathon prototype
+```text
+Accuracy  ≈ 70.5%
+ROC-AUC    ≈ 0.724
+```
 
-Potential future models:
+The model is used primarily as a recovery probability engine inside the larger decision system.
 
-Logistic Regression
-XGBoost
-LightGBM
-🧠 Recovery Decision Engine
+---
 
-The ML model predicts the probability of recovery.
+# 🧠 Recovery Decision Engine
 
-The decision engine converts this prediction into an actionable recovery strategy.
+The ML model does not directly determine the final action.
+
+The decision engine applies failure-aware rules.
+
+### Valid Actions
+
+```text
+retry
+reminder
+payment_link
+escalate
+```
 
 Example:
 
-Failure Reason = Network Error
-Recovery Probability = 86%
-Attempt Number = 1
+```text
+Network Error
+      ↓
+Valid Actions:
+Retry
+Reminder
+Payment Link
+      ↓
+ML Probabilities
+      ↓
+Expected Revenue
+      ↓
+RETRY
+```
 
-              ↓
+For insufficient funds:
 
-            RETRY
+```text
+Insufficient Funds
+      ↓
+Valid Actions:
+Reminder
+Payment Link
+      ↓
+ML Probabilities
+      ↓
+Expected Revenue
+      ↓
+PAYMENT LINK / REMINDER
+```
 
-Another example:
+---
 
-Failure Reason = Insufficient Funds
-Recovery Probability = 48%
+# 🖥️ Merchant Dashboard
 
-              ↓
+The Angular frontend provides a merchant-facing recovery dashboard.
 
-          REMINDER
+The dashboard displays:
 
-Another:
+- Failed payments
+- Customer information
+- Payment amount
+- Failure reason
+- Attempt number
+- AI recovery recommendation
+- Recovery probability
+- Expected revenue
+- Alternative actions
 
-Failure Reason = Expired Card
+Example:
 
-              ↓
+```text
+Customer: Rahul Sharma
+Amount: ₹5,000
+Failure: Insufficient Funds
 
-        PAYMENT LINK
+Recommended Action:
+PAYMENT LINK
 
-The decision engine considers:
+Recovery Probability:
+79.82%
 
-ML Probability
-+
-Failure Reason
-+
-Attempt Number
+Expected Revenue:
+₹3,587.93
+```
+
+---
+
+# 📦 Dataset
+
+The current hackathon prototype uses **synthetic data**.
+
+No real customer or payment information is used.
+
+The main training dataset is:
+
+```text
+data/raw/recovery_action_dataset.csv
+```
+
+It represents candidate recovery actions for failed transactions and their recovery outcomes.
+
+Supporting synthetic datasets include:
+
+```text
+customers.csv
+transactions.csv
+recovery_events.csv
+```
+
+The action-conditioned dataset allows the model to learn:
+
+```text
+Payment Context
 +
 Customer Context
 +
-Business Rules
-📊 Merchant Dashboard
+Recovery Action
+        ↓
+Recovery Outcome
+```
 
-The Angular frontend provides merchants with a real-time view of payment recovery.
+---
 
-Key Metrics
+# 📁 Project Structure
 
-Example:
-
-┌────────────────────────────────────────────┐
-│                                            │
-│  Revenue At Risk        ₹12.4 L            │
-│  Revenue Recovered       ₹8.7 L            │
-│  Recovery Rate            70.2%            │
-│  Failed Payments          1,428            │
-│                                            │
-└────────────────────────────────────────────┘
-Failed Payment Table
-Transaction   Amount    Failure       Probability   Action
-------------------------------------------------------------
-TXN00123      ₹8,500    Network       87%            Retry
-TXN00124      ₹3,200    Funds         46%            Reminder
-TXN00125      ₹6,700    Expired Card  31%            Payment Link
-
-The merchant can see:
-
-Which payments failed
-Why they failed
-Recovery probability
-Recommended action
-Recovery status
-Recovered revenue
-📦 Dataset
-
-The current system uses synthetic data for development.
-
-This allows the complete ML pipeline to be developed without using real customer or payment information.
-
-The dataset consists of three primary files.
-
-customers.csv
-
-One row represents one customer.
-
-Contains:
-
-customer_id
-customer_tenure_days
-total_transactions
-successful_transactions
-failed_transactions
-historical_success_rate
-avg_transaction_amount
-days_since_last_success
-customer_segment
-transactions.csv
-
-One row represents one payment attempt.
-
-Contains:
-
-transaction_id
-customer_id
-merchant_id
-subscription_id
-amount
-currency
-payment_method
-payment_gateway
-transaction_timestamp
-failure_reason
-failure_code
-is_recurring
-attempt_number
-recovery_events.csv
-
-One row represents one recovery attempt.
-
-Contains:
-
-recovery_event_id
-transaction_id
-customer_id
-failure_reason
-action_taken
-action_timestamp
-channel
-retry_delay_hours
-recovery_probability
-recovered
-recovery_time_hours
-recovered_amount
-🔄 ML Dataset
-
-The customer and transaction information is combined with recovery outcomes to create:
-
-ml_dataset.csv
-
-This dataset is used for model training and evaluation.
-
-The ML pipeline is:
-
-customers.csv
-       +
-transactions.csv
-       +
-recovery_events.csv
-       │
-       ▼
-prepare_ml_data.py
-       │
-       ▼
-ml_dataset.csv
-       │
-       ▼
-Feature Processing
-       │
-       ▼
-Model Training
-📁 Project Structure
-
-The entire application is contained inside one repository.
-
-razorpay-revenue-recovery/
+```text
+razorpay_revenue_recovery/
 │
 ├── frontend/
-│   │
 │   └── Angular merchant dashboard
 │
 ├── backend/
-│   │
-│   ├── src/
-│   │   ├── controllers/
-│   │   ├── routes/
-│   │   ├── services/
-│   │   ├── models/
-│   │   ├── middleware/
-│   │   └── utils/
-│   │
-│   └── package.json
+│   ├── routes/
+│   │   └── recovery.js
+│   ├── server.js
+│   ├── package.json
+│   └── .env
 │
 ├── ml_service/
-│   │
 │   ├── data/
 │   │   ├── raw/
 │   │   │   ├── customers.csv
 │   │   │   ├── transactions.csv
-│   │   │   └── recovery_events.csv
-│   │   │
+│   │   │   ├── recovery_events.csv
+│   │   │   └── recovery_action_dataset.csv
 │   │   └── processed/
-│   │       └── ml_dataset.csv
+│   │
+│   ├── models/
+│   │   └── recovery_model.joblib
 │   │
 │   ├── src/
 │   │   ├── data/
-│   │   │   ├── generate_data.py
-│   │   │   └── prepare_ml_data.py
-│   │   │
+│   │   │   └── generate_data.py
 │   │   ├── models/
-│   │   │   ├── train_model.py
-│   │   │   └── evaluate.py
-│   │   │
-│   │   └── prediction/
-│   │       └── predictor.py
-│   │
-│   ├── notebooks/
-│   │   └── 01_eda.ipynb
+│   │   │   └── train_model.py
+│   │   ├── decision_engine.py
+│   │   ├── test_decision.py
+│   │   └── app.py
 │   │
 │   ├── requirements.txt
-│   └── Dockerfile
+│   └── .venv/
 │
 ├── infrastructure/
-│   │
-│   └── AWS / Docker configuration
-│
 ├── docs/
-│   ├── architecture.md
-│   └── api.md
-│
 ├── README.md
-├── .gitignore
-└── docker-compose.yml
-🛠️ Technology Stack
-Frontend
+└── .gitignore
+```
+
+---
+
+# 🛠️ Technology Stack
+
+### Frontend
+- Angular
+- TypeScript
+- HTML
+- CSS
+
+### Backend
+- Node.js
+- Express.js
+- Axios
+- REST APIs
+
+### ML Service
+- Python
+- Flask
+- Pandas
+- NumPy
+- Scikit-learn
+- Joblib
+
+### ML
+- Random Forest Classifier
+- One-Hot Encoding
+- Transaction-level group splitting
+
+---
+
+# 🔌 API Architecture
+
+```text
 Angular
-TypeScript
-HTML
-CSS
-Backend
-Node.js
-Express.js
-REST APIs
-ML Service
-Python
-Flask
-Pandas
-NumPy
-Scikit-learn
-Joblib
-Infrastructure
-Docker
-AWS
-Payment Integration
-Razorpay APIs
-Razorpay Webhooks
-🔌 API Architecture
-
-The backend acts as the main application layer.
-
-The ML service operates as an independent service.
-
-Angular
+   │
+   │ POST
+   ▼
+Node.js / Express
+   │
+   │ POST
+   ▼
+Flask ML Service
    │
    ▼
-Node.js Backend
+Decision Engine
    │
-   ├───────────────► Database
-   │
-   │
-   └───────────────► ML Service
-                          │
-                          ▼
-                  Recovery Probability
-📡 Payment Failure API
+   ▼
+Recovery Recommendation
+```
 
-When a payment fails, Razorpay sends a webhook.
+## Current Recommendation API
 
-Example endpoint:
-
-POST /api/webhooks/payment-failed
-
-The backend:
-
-Receive webhook
-      ↓
-Validate event
-      ↓
-Extract payment information
-      ↓
-Fetch customer information
-      ↓
-Create ML features
-      ↓
-Call ML service
-      ↓
-Receive probability
-      ↓
-Run decision engine
-      ↓
-Store recovery event
-      ↓
-Return recommended action
-🤖 ML Prediction API
-
-Example endpoint:
-
-POST /predict
+```text
+POST /api/recovery/recommend
+```
 
 Example request:
 
+```json
 {
-  "amount": 8500,
-  "payment_method": "card",
-  "payment_gateway": "razorpay",
-  "failure_reason": "network_error",
-  "is_recurring": true,
+  "amount": 5000,
+  "payment_method": "UPI",
+  "payment_gateway": "Razorpay",
+  "is_recurring": 1,
   "attempt_number": 1,
-  "customer_tenure_days": 420,
-  "total_transactions": 35,
-  "successful_transactions": 32,
+  "failure_reason": "insufficient_funds",
+  "customer_tenure_days": 500,
+  "total_transactions": 30,
+  "successful_transactions": 27,
   "failed_transactions": 3,
-  "historical_success_rate": 0.91,
-  "avg_transaction_amount": 7200,
+  "historical_success_rate": 0.90,
+  "avg_transaction_amount": 1500,
   "days_since_last_success": 5,
   "customer_segment": "regular"
 }
+```
 
 Example response:
 
+```json
 {
-  "recovery_probability": 0.87
+  "failure_reason": "insufficient_funds",
+  "amount": 5000,
+  "recommended_action": "payment_link",
+  "recovery_probability": 0.7982,
+  "expected_revenue": 3587.93,
+  "reason": "A payment link gives the customer an alternative way to complete the payment."
 }
-🔄 End-to-End Example
-1. Customer's subscription payment fails
-                  ↓
-2. Razorpay sends webhook
-                  ↓
-3. Backend receives failure
-                  ↓
-4. Backend gets customer history
-                  ↓
-5. Features are sent to ML service
-                  ↓
-6. ML predicts recovery probability
-                  ↓
-7. Decision engine selects action
-                  ↓
-8. Recovery action is triggered
-                  ↓
-9. Payment outcome is recorded
-                  ↓
-10. Dashboard updates
-💻 Running the Project
-1. Clone Repository
+```
+
+## ML Health API
+
+```text
+GET /health
+```
+
+---
+
+# 💻 Running the Project
+
+## 1. Clone
+
+```bash
 git clone <repository-url>
+cd razorpay_revenue_recovery
+```
 
-cd razorpay-revenue-recovery
-🐍 ML Service Setup
+## 2. ML Service
 
-Navigate to:
-
+```bash
 cd ml_service
-
-Create virtual environment:
-
 python -m venv .venv
-Windows
+```
+
+### Windows
+
+```powershell
 .venv\Scripts\activate
+```
 
 Install dependencies:
 
+```bash
 pip install -r requirements.txt
-Generate Synthetic Data
+```
+
+Generate synthetic data:
+
+```bash
 python src/data/generate_data.py
+```
 
-This generates:
+Train model:
 
-data/raw/customers.csv
-data/raw/transactions.csv
-data/raw/recovery_events.csv
-Prepare ML Dataset
-python src/data/prepare_ml_data.py
-
-This generates:
-
-data/processed/ml_dataset.csv
-Train Model
+```bash
 python src/models/train_model.py
+```
 
-The trained model will be saved locally.
+Start ML service:
 
-Start ML Service
-python app.py
+```bash
+python src/app.py
+```
 
-The Flask service exposes the prediction API.
+ML service:
 
-🟢 Backend Setup
+```text
+http://localhost:5001
+```
 
-Navigate to:
+## 3. Backend
 
+Open another terminal:
+
+```bash
 cd backend
-
-Install dependencies:
-
 npm install
+node server.js
+```
 
-Start development server:
+Backend:
 
-npm run dev
-🖥️ Frontend Setup
+```text
+http://localhost:5000
+```
 
-Navigate to:
+## 4. Frontend
 
+Open another terminal:
+
+```bash
 cd frontend
-
-Install dependencies:
-
 npm install
-
-Start Angular:
-
 ng serve
-🐳 Docker
+```
 
-The final version will support running the complete system using:
+Frontend:
 
-docker-compose up
+```text
+http://localhost:4200
+```
 
-This will allow:
+---
 
-Frontend
+# 🔄 End-to-End Flow
+
+```text
+1. Merchant selects a failed payment
+                ↓
+2. Angular sends payment context
+                ↓
+3. Node.js backend receives request
+                ↓
+4. Node.js calls Flask ML service
+                ↓
+5. ML model evaluates candidate actions
+                ↓
+6. Decision engine filters invalid actions
+                ↓
+7. Expected revenue is calculated
+                ↓
+8. Best recovery action is selected
+                ↓
+9. Recommendation is returned
+                ↓
+10. Angular dashboard displays result
+```
+
+---
+
+# 🎥 Hackathon Demonstration
+
+The prototype demonstrates multiple failure scenarios.
+
+### Scenario 1 — Insufficient Funds
+
+```text
+Payment Amount: ₹5,000
+Failure: Insufficient Funds
+
+             ↓
+
+Payment Link
+Recovery Probability: 79.82%
+
+Expected Revenue: ₹3,587.93
+```
+
+### Scenario 2 — Network Error
+
+```text
+Payment Failure:
+Network Error
+
+             ↓
+
+Retry
+```
+
+The key demonstration is that **changing the failure context can change the recommended recovery action**.
+
+---
+
+# 🚧 Current MVP Scope
+
+## Implemented
+
+- Synthetic customer data
+- Synthetic transaction data
+- Action-conditioned recovery dataset
+- ML training pipeline
+- Random Forest recovery model
+- Recovery probability prediction
+- Failure-aware action filtering
+- Expected revenue calculation
+- Recovery decision engine
+- Flask ML API
+- Node.js backend
+- Angular merchant dashboard
+- End-to-end frontend → backend → ML integration
+
+## Future/Productization Work
+
+- Live Razorpay webhook integration
+- Real payment execution
+- Production database
+- Authentication and authorization
+- Live customer/payment data
+- Automated notification delivery
+- Production deployment
+- Continuous model retraining
+- Dynamic retry scheduling
+- Full analytics pipeline
+
+---
+
+# 🚀 Future Improvements
+
+## 1. Razorpay Webhook Integration
+
+A production version can consume payment failure events through Razorpay webhooks:
+
+```text
+Payment Failed
+      ↓
+Razorpay Webhook
+      ↓
 Backend
-ML Service
+      ↓
+ML + Decision Engine
+      ↓
+Recovery Action
+```
 
-to run together.
+## 2. Dynamic Retry Scheduling
 
-🚧 Development Roadmap
-Phase 1 — Repository & Data
- Monorepo structure
- Synthetic customer dataset
- Synthetic transaction dataset
- Synthetic recovery dataset
- ML dataset preparation
-Phase 2 — Machine Learning
- Exploratory Data Analysis
- Feature engineering
- Train/test split
- Baseline model
- Random Forest model
- Model evaluation
- Feature importance
- Prediction API
-Phase 3 — Backend
- Express application
- Payment failure API
- ML service integration
- Recovery decision engine
- Recovery event storage
- Analytics APIs
-Phase 4 — Frontend
- Angular dashboard
- Revenue at risk
- Revenue recovered
- Recovery rate
- Failed payment table
- Recovery probability
- Recommended action
- Recovery analytics
-Phase 5 — Integration
- Razorpay webhook simulation
- Backend → ML integration
- Frontend → Backend integration
- End-to-end payment flow
- Docker setup
- Demo testing
-🚀 Future Improvements
+Instead of fixed retry intervals, the system could learn the optimal retry timing for each customer and failure type.
 
-The initial system combines supervised machine learning with a rule-based decision engine.
+## 3. Contextual Action Optimization
 
-Future versions can make the decision process more intelligent.
+Future versions could learn the best recovery action directly from historical outcomes using approaches such as:
 
-Dynamic Retry Scheduling
+- Contextual Bandits
+- Reinforcement Learning
+- Causal Inference
 
-Instead of using fixed retry intervals:
+## 4. Customer-Specific Recovery
 
-Retry after 1 hour
-Retry after 6 hours
-Retry after 24 hours
+Different customers may respond differently to recovery strategies.
 
-the system can learn:
-
-When is the optimal time to retry for this customer?
-Action Optimization
-
-Instead of manually defining:
-
-Failure → Action
-
-the system could learn:
-
-Customer Context
-       +
-Failure Context
-       +
-Historical Outcomes
-       ↓
-Best Recovery Action
-
-Potential approaches:
-
-Contextual Bandits
-Reinforcement Learning
-Causal Inference
-Customer-Specific Recovery
-
-Different customers can receive different recovery strategies.
-
-Example:
-
+```text
 Customer A
 High historical success
         ↓
-Immediate Retry
+Retry
+
 Customer B
 Frequent insufficient-funds failures
         ↓
 Reminder
+
 Customer C
 Expired card
         ↓
 Payment Link
-Continuous Learning
+```
 
-Every recovery attempt generates an outcome.
+## 5. Continuous Learning
 
+Future versions can incorporate recovery outcomes into model retraining:
+
+```text
 Prediction
     ↓
 Action
@@ -890,146 +879,154 @@ Outcome
 Feedback
     ↓
 Future Model
+```
 
-This creates a continuous learning loop.
+---
 
-📈 Success Metrics
+# 📈 Success Metrics
 
-The system will be evaluated using both ML and business metrics.
+## ML Metrics
 
-ML Metrics
-ROC-AUC
-Precision
-Recall
-F1 Score
-Confusion Matrix
-Business Metrics
-Recovery Rate
-Revenue Recovered
-Revenue At Risk
-Recovery Lift
-Average Recovery Time
-Unnecessary Retry Reduction
+- Accuracy
+- ROC-AUC
+- Precision
+- Recall
+- F1 Score
+- Confusion Matrix
 
-The most important business metric is:
+## Business Metrics
 
-Additional revenue recovered compared with a basic fixed-retry strategy.
+- Recovery Rate
+- Revenue Recovered
+- Revenue At Risk
+- Recovery Lift
+- Average Recovery Time
+- Unnecessary Retry Reduction
 
-🔐 Security Considerations
+The key future business metric is:
 
-The production version should include:
+> **Additional revenue recovered compared with a basic fixed-retry strategy.**
 
-Webhook signature verification
-Authentication and authorization
-Encrypted credentials
-Secure environment variables
-API rate limiting
-Input validation
-Logging and monitoring
-No storage of sensitive payment credentials
+---
 
-The hackathon prototype will use simulated/synthetic payment information where appropriate.
+# 🔐 Security Considerations
 
-🧪 Testing Strategy
+A production deployment should include:
 
-The system will be tested at multiple levels.
+- Webhook signature verification
+- Authentication and authorization
+- Encrypted credentials
+- Secure environment variables
+- API rate limiting
+- Input validation
+- Logging and monitoring
+- No storage of sensitive payment credentials
 
-ML
-Dataset validation
-Feature validation
-Model evaluation
-Prediction testing
-Backend
-API tests
-Webhook tests
-Decision engine tests
-ML integration tests
-Frontend
-Component tests
-API integration
-Dashboard validation
-End-to-End
+The hackathon prototype uses synthetic payment information.
+
+---
+
+# 🧪 Testing
+
+The current prototype includes testing of:
+
+- Dataset generation
+- Model training and evaluation
+- Decision engine recommendations
+- ML API
+- Backend → ML integration
+- Frontend → backend integration
+
+The core end-to-end path is:
+
+```text
 Failed Payment
       ↓
-Webhook
+Angular
       ↓
 Backend
       ↓
-ML
+ML Service
       ↓
-Decision
+Decision Engine
       ↓
-Recovery
+Recommendation
       ↓
 Dashboard
-🏆 Hackathon Demo
+```
 
-The final demonstration will simulate a failed subscription payment.
+---
 
-Scenario
-Payment Failed
-       ↓
+# 🏆 Hackathon Demo
+
+The hackathon demo focuses on showing how the system reacts differently to different payment failures.
+
+Example:
+
+```text
+Insufficient Funds
+        ↓
+Payment Link
+
 Network Error
-       ↓
-Customer history retrieved
-       ↓
-ML prediction
-       ↓
-Recovery Probability = 87%
-       ↓
-Recommended Action = RETRY
-       ↓
-Payment recovered
-       ↓
-Revenue Recovered = ₹8,500
+        ↓
+Retry
+```
 
-The merchant dashboard will show the complete recovery journey.
+This demonstrates the core idea:
 
-⚠️ Disclaimer
+> **Different failures can require different recovery actions.**
 
-This project is a hackathon prototype.
+---
+
+# ⚠️ Disclaimer
+
+This project is a **hackathon prototype**.
 
 The current development environment uses synthetic customer and payment data.
 
 No real customer information, payment credentials, or financial data are used.
 
-Razorpay payment events may be simulated during development.
+Live Razorpay payment events are not currently connected to the MVP; payment scenarios are simulated during development.
 
 Any production deployment would require appropriate security, compliance, payment-provider integration, and operational controls.
 
-🎯 Final Objective
+---
+
+# 🎯 Final Objective
 
 The goal is not simply to predict whether a payment will succeed.
 
 The goal is to answer:
 
-"A payment just failed. What should we do next to maximize the probability of recovering this revenue while minimizing unnecessary retries and customer friction?"
+> **"A payment just failed. What should we do next to maximize the probability of recovering this revenue while minimizing unnecessary retries and customer friction?"**
 
-The complete intelligence loop is:
+The core intelligence loop is:
 
-       FAILED PAYMENT
-              ↓
-       UNDERSTAND WHY
-              ↓
-       ANALYZE CUSTOMER
-              ↓
-       PREDICT RECOVERY
-              ↓
-       CHOOSE BEST ACTION
-              ↓
-       RECOVER REVENUE
-              ↓
-       RECORD OUTCOME
-              ↓
-          LEARN
-              │
-              └──────────────► Future Decisions
-👥 Team
+```text
+FAILED PAYMENT
+      ↓
+UNDERSTAND WHY
+      ↓
+ANALYZE CUSTOMER
+      ↓
+PREDICT RECOVERY
+      ↓
+CHOOSE BEST ACTION
+      ↓
+RECOVER REVENUE
+```
 
-Built for the Razorpay Hackathon.
+---
 
-⭐ Project Status
+# 👥 Team
 
-Current Status: 🚧 In Development
+Built for the **Razorpay Hackathon — Track 3: AI Revenue Recovery**.
 
-The project is being developed incrementally, with the ML pipeline, backend, frontend, and integration being built as separate components within a single monorepo.
+---
+
+## ⭐ Project Status
+
+**Hackathon MVP — Core ML + Decision Engine + Backend + Frontend completed.**
+
+The prototype demonstrates the core revenue-recovery decision workflow using synthetic data.
